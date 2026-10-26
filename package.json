@@ -1,0 +1,9 @@
+{
+  "name": "udupi-hotel-api",
+  "version": "1.0.0",
+  "description": "Restaurant menu and order management REST API",
+  "main": "src/server.js",
+  "scripts": {"start": "node src/server.js", "dev": "nodemon src/server.js", "test": "node --test"},
+  "dependencies": {"dotenv": "^16.4.7", "express": "^4.21.2", "express-validator": "^7.2.1", "mysql2": "^3.12.0", "swagger-jsdoc": "^6.2.8", "swagger-ui-express": "^5.0.1"},
+  "devDependencies": {"nodemon": "^3.1.9"}
+}

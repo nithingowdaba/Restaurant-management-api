@@ -1,0 +1,16 @@
+{
+  "info": { "name": "Udupi Hotel API", "description": "Menu, order and sales API examples", "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json" },
+  "variable": [{ "key": "baseUrl", "value": "http://localhost:3000" }, { "key": "menuItemId", "value": "1" }, { "key": "orderId", "value": "1" }],
+  "item": [
+    { "name": "Health", "request": { "method": "GET", "url": "{{baseUrl}}/api/health" } },
+    { "name": "List menu", "request": { "method": "GET", "url": "{{baseUrl}}/api/menu-items?page=1&limit=20" } },
+    { "name": "Search menu", "request": { "method": "GET", "url": "{{baseUrl}}/api/menu-items?search=dosa&available=true" } },
+    { "name": "Create menu item", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"name\": \"Ghee Roast Dosa\",\n  \"description\": \"Crisp dosa with ghee\",\n  \"category\": \"Breakfast\",\n  \"price\": 110.00\n}" }, "url": "{{baseUrl}}/api/menu-items" } },
+    { "name": "Create order", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"customer_name\": \"Ananya Rao\",\n  \"phone\": \"9876543210\",\n  \"payment_method\": \"upi\",\n  \"items\": [{ \"menu_item_id\": {{menuItemId}}, \"quantity\": 2 }]\n}" }, "url": "{{baseUrl}}/api/orders" } },
+    { "name": "Get order", "request": { "method": "GET", "url": "{{baseUrl}}/api/orders/{{orderId}}" } },
+    { "name": "Complete order", "request": { "method": "PATCH", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"status\":\"completed\"}" }, "url": "{{baseUrl}}/api/orders/{{orderId}}/status" } },
+    { "name": "Cancel order", "request": { "method": "PATCH", "url": "{{baseUrl}}/api/orders/{{orderId}}/cancel" } },
+    { "name": "Daily sales", "request": { "method": "GET", "url": "{{baseUrl}}/api/reports/daily-sales" } },
+    { "name": "Top selling", "request": { "method": "GET", "url": "{{baseUrl}}/api/reports/top-selling-items?limit=10" } }
+  ]
+}
