@@ -1,66 +1,160 @@
 # Udupi Hotel Ordering API
 
-A small Express + MySQL REST API for menu management, restaurant orders, and basic sales reports. It uses CommonJS and `mysql2/promise`; order totals are always computed by the server.
+A small Express + MySQL REST API for menu management, restaurant orders, and sales reporting. It uses CommonJS, mysql2/promise, JWT-based authentication, and explicit roles for customers, staff, and admins.
 
 ## Folder guide
 
 - `src/server.js` starts the HTTP server; `src/app.js` wires middleware and routes.
-- `src/config/db.js` creates the shared MySQL connection pool. `swagger.js` defines the OpenAPI page.
-- `src/routes/index.js` contains the endpoint handlers and their SQL. The `asyncHandler` helper forwards failures to the central error handler.
-- `src/middleware` holds request validation and consistent errors. `src/utils/money.js` converts currency to integer paise.
-- `database/schema.sql` creates the tables safely and inserts starter dishes. `test/` has the pure unit test.
+- `src/config/db.js` creates the shared MySQL connection pool; `src/config/swagger.js` defines the OpenAPI page.
+- `src/routes/index.js` contains the endpoint handlers together with SQL, validation, and auth checks.
+- `src/middleware` holds request validation, JWT authentication, authorization, and central error handling.
+- `src/utils/auth.js` centralizes password hashing, JWT creation, sanitization, and role logic.
+- `database/schema.sql` creates the tables for fresh installs and is safe for new projects.
+- `database/auth-migration.sql` is the non-destructive migration for an existing installation and should only be run on a live schema after review.
+- `scripts/create-admin.js` creates the initial admin account with a bcrypt-hashed password.
+- `test/` contains the unit tests for the auth utilities and money conversion.
 
 ## Setup
 
 Requirements: Node.js 18+ and MySQL 8.0.
 
-1. Create the schema and sample menu rows. From a MySQL client, run `SOURCE /absolute/path/to/udupi-hotel-api/database/schema.sql;`. The script uses `CREATE DATABASE/TABLE IF NOT EXISTS` and does not drop existing data. Starter rows are inserted only if that name/category pair is not already present.
-2. Copy `.env.example` to `.env`, then set the local MySQL username and password. Set `DB_NAME=udupi_hotel` unless you changed the schema database name.
-3. Run `npm install`, then `npm run dev` for development or `npm start` normally.
-4. Check `GET http://localhost:3000/api/health`. Interactive API docs are at `http://localhost:3000/api-docs`.
-5. Import `postman/Udupi-Hotel-API.postman_collection.json` into Postman. It defines a `baseUrl` variable; requests use example menu/order IDs, so update those IDs to match your returned data.
+1. Before changing a live database, review the migration impact. The migration adds a `users` table and a nullable `orders.user_id` foreign key. It does not drop or truncate existing menu or order records. Existing orders without an associated user remain visible to staff/admin only.
+2. For a fresh install, run `SOURCE /absolute/path/to/udupi-hotel-api/database/schema.sql;` from a MySQL client. This creates the database and the tables with the authentication model included.
+3. For an existing installation, run `SOURCE /absolute/path/to/udupi-hotel-api/database/auth-migration.sql;` only after confirming the schema and sample data are already in an expected state. This is the safe, non-destructive migration path for an active database.
+4. Copy `.env.example` to `.env`, then set the MySQL credentials and a strong `JWT_SECRET` value. Keep `.env` out of Git.
+5. Run `npm install`, then `npm run dev` or `npm start`.
+6. Check `GET http://localhost:3000/api/health` and open `http://localhost:3000/api-docs` for the Swagger UI.
+7. Import `postman/Udupi-Hotel-API.postman_collection.json` into Postman. It includes auth requests and a `token` variable.
+
+## Environment variables
+
+Create a `.env` file from `.env.example` with values such as:
+
+```env
+PORT=3000
+DB_HOST=localhost
+DB_PORT=3306
+DB_USER=udupi_app
+DB_PASSWORD=replace_with_your_local_password
+DB_NAME=udupi_hotel
+JWT_SECRET=replace_with_a_long_random_secret_at_least_32_chars
+ADMIN_EMAIL=admin@udupi.local
+ADMIN_NAME=Restaurant Admin
+ADMIN_PHONE=0000000000
+ADMIN_PASSWORD=replace_with_a_strong_password_at_least_8_chars
+```
+
+The JWT secret is required and must not be committed to source control.
+
+## Creating the initial admin
+
+Run the one-time helper:
+
+```bash
+npm run create-admin
+```
+
+This script creates the first `ADMIN` user in the `users` table using a bcrypt-hashed password. It does not expose a public admin-registration endpoint and should be used only in a trusted local environment.
+
+## Authentication model
+
+Roles:
+
+- `CUSTOMER`: register, log in, view the public menu, place orders, and view only their own orders.
+- `STAFF`: view all orders and reports, update valid order status, and cancel eligible orders.
+- `ADMIN`: has staff privileges plus menu management, staff-account creation, and all-order access.
+
+All authorization checks are performed on the server side using the authenticated user record retrieved from MySQL.
 
 ## API contract
 
-Success: `{ "success": true, "data": resource }`. Collection responses include `meta` with `page`, `limit`, `total`, and `totalPages`. Errors use `{ "success": false, "error": { "code": "...", "message": "...", "details": [] } }`.
+Success responses: `{ "success": true, "data": resource }`. Collection responses include `meta` with `page`, `limit`, `total`, and `totalPages`. Errors use `{ "success": false, "error": { "code": "...", "message": "...", "details": [] } }`.
 
-| Method and path | Purpose |
-| --- | --- |
-| `GET /api/health` | App and DB check |
-| `GET /api/menu-items?search=&category=&available=true&page=1&limit=20` | Filter/paginate menu |
-| `GET /api/menu-items/:id` | One item |
-| `POST /api/menu-items` | Add item: name, category, positive price; optional description and availability |
-| `PATCH /api/menu-items/:id` | Update supplied menu fields |
-| `PATCH /api/menu-items/:id/availability` | Set `{ "is_available": false }` |
-| `POST /api/orders` | Create customer order |
-| `GET /api/orders?status=pending&page=1&limit=20` | Paginated order history |
-| `GET /api/orders/:id` | Order with item snapshots |
-| `PATCH /api/orders/:id/status` | Set pending/confirmed/preparing/ready/completed |
-| `PATCH /api/orders/:id/cancel` | Cancel pending/confirmed order |
-| `GET /api/reports/daily-sales?date=2026-10-26` | Completed sales for a date; date defaults to today |
-| `GET /api/reports/top-selling-items?limit=10&from=2026-10-01&to=2026-10-26` | Quantities ranked; dates optional |
+### Public endpoints
 
-Example order body (replace IDs with available menu item IDs):
+- `GET /api/health`
+- `GET /api/menu-items`
+- `GET /api/menu-items/:id`
+- `POST /api/auth/register`
+- `POST /api/auth/login`
 
-```json
+### Authenticated customer endpoints
+
+- `GET /api/auth/me`
+- `POST /api/orders`
+- `GET /api/orders`
+- `GET /api/orders/:id`
+- `PATCH /api/orders/:id/cancel`
+
+### Staff/admin-only endpoints
+
+- `POST /api/auth/staff`
+- `POST /api/menu-items`
+- `PATCH /api/menu-items/:id`
+- `PATCH /api/menu-items/:id/availability`
+- `PATCH /api/orders/:id/status`
+- `GET /api/reports/daily-sales`
+- `GET /api/reports/top-selling-items`
+
+## Example auth requests
+
+### Register a customer
+
+```http
+POST /api/auth/register
+Content-Type: application/json
+
 {
-  "customer_name": "Ananya Rao",
+  "full_name": "Ananya Rao",
+  "email": "ananya@example.com",
   "phone": "9876543210",
+  "password": "StrongPass123!"
+}
+```
+
+### Login
+
+```http
+POST /api/auth/login
+Content-Type: application/json
+
+{
+  "email": "ananya@example.com",
+  "password": "StrongPass123!"
+}
+```
+
+### Authenticated order creation
+
+```http
+POST /api/orders
+Authorization: Bearer <jwt>
+Content-Type: application/json
+
+{
   "payment_method": "upi",
   "items": [{ "menu_item_id": 1, "quantity": 2 }, { "menu_item_id": 5, "quantity": 1 }]
 }
 ```
 
-The API intentionally does not accept prices or totals from clients. A transaction locks the selected menu rows, checks availability, calculates integer paise, inserts the order and its historical item snapshots, then commits. A failure rolls the whole operation back. Status updates follow pending → confirmed → preparing → ready → completed; cancellation is available only for pending or confirmed orders. Daily sales defaults to the current Asia/Kolkata date. Top-selling quantities count completed orders only. The menu foreign key uses `RESTRICT`; menu rows with order history cannot be deleted. No delete endpoint is exposed.
+The server stores the authenticated user's `full_name` and `phone` from the database for each new order. Clients should not send customer identity fields when creating orders.
+
+## Order status and cancellation rules
+
+- Status transitions remain `pending → confirmed → preparing → ready → completed`.
+- Cancellation is permitted only while the status is `pending` or `confirmed`.
+- Customers can cancel only their own eligible orders.
+- Staff/admin users may cancel any eligible order.
+- Daily sales and top-selling summaries count only completed orders.
 
 ## Testing and demo
 
-- Run `npm test` for the money calculation test.
-- In Postman: health → list menu → create an order → fetch that order → mark it completed → check daily sales and top sellers. Try an unavailable item to demonstrate a clean `409` response and a missing ID to demonstrate `404`.
-- Run `git status` and commit the working API and a sanitized `.env.example`; never commit `.env`.
+- Run `npm test` for the automated unit tests.
+- For a manual verification, register a customer, log in, create an order, fetch only that order, and confirm a customer cannot access another user's order or change order status.
+- Then create and log in as an admin, create a staff account, manage a menu item, and verify the sales reports work.
 
-## Two-day plan
+## Migration notes
 
-**Day 1:** Install packages, initialize MySQL, check health/menu endpoints, import Postman collection, create orders, and walk through transaction and snapshot behavior. Fix any local connection/configuration issues.
-
-**Day 2:** Test validation, pagination, cancellation rules, and reports in Postman. Have your teammate review the documented request/response shapes, agree on IDs and status behavior, then rehearse a short demo: menu → order → status update → report. Commit a stable version before presenting.
+- For a fresh database, run the full schema file.
+- For an existing installation, run the migration file only after reviewing the live schema and application state.
+- The migration is non-destructive: it adds a `users` table and a nullable `orders.user_id` column, and it keeps existing orders accessible to staff/admin when there is no associated user.

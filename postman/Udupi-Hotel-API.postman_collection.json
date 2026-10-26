@@ -1,16 +1,135 @@
 {
-  "info": { "name": "Udupi Hotel API", "description": "Menu, order and sales API examples", "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json" },
-  "variable": [{ "key": "baseUrl", "value": "http://localhost:3000" }, { "key": "menuItemId", "value": "1" }, { "key": "orderId", "value": "1" }],
+  "info": {
+    "name": "Udupi Hotel API",
+    "description": "Menu, order, authentication, and sales API examples",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:3000" },
+    { "key": "token", "value": "" },
+    { "key": "menuItemId", "value": "1" },
+    { "key": "orderId", "value": "1" },
+    { "key": "customerEmail", "value": "customer@example.com" },
+    { "key": "customerPassword", "value": "StrongPass123!" }
+  ],
   "item": [
-    { "name": "Health", "request": { "method": "GET", "url": "{{baseUrl}}/api/health" } },
-    { "name": "List menu", "request": { "method": "GET", "url": "{{baseUrl}}/api/menu-items?page=1&limit=20" } },
-    { "name": "Search menu", "request": { "method": "GET", "url": "{{baseUrl}}/api/menu-items?search=dosa&available=true" } },
-    { "name": "Create menu item", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"name\": \"Ghee Roast Dosa\",\n  \"description\": \"Crisp dosa with ghee\",\n  \"category\": \"Breakfast\",\n  \"price\": 110.00\n}" }, "url": "{{baseUrl}}/api/menu-items" } },
-    { "name": "Create order", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"customer_name\": \"Ananya Rao\",\n  \"phone\": \"9876543210\",\n  \"payment_method\": \"upi\",\n  \"items\": [{ \"menu_item_id\": {{menuItemId}}, \"quantity\": 2 }]\n}" }, "url": "{{baseUrl}}/api/orders" } },
-    { "name": "Get order", "request": { "method": "GET", "url": "{{baseUrl}}/api/orders/{{orderId}}" } },
-    { "name": "Complete order", "request": { "method": "PATCH", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"status\":\"completed\"}" }, "url": "{{baseUrl}}/api/orders/{{orderId}}/status" } },
-    { "name": "Cancel order", "request": { "method": "PATCH", "url": "{{baseUrl}}/api/orders/{{orderId}}/cancel" } },
-    { "name": "Daily sales", "request": { "method": "GET", "url": "{{baseUrl}}/api/reports/daily-sales" } },
-    { "name": "Top selling", "request": { "method": "GET", "url": "{{baseUrl}}/api/reports/top-selling-items?limit=10" } }
+    {
+      "name": "Health",
+      "request": { "method": "GET", "url": "{{baseUrl}}/api/health" }
+    },
+    {
+      "name": "Register customer",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"full_name\": \"Ananya Rao\",\n  \"email\": \"{{customerEmail}}\",\n  \"phone\": \"9876543210\",\n  \"password\": \"{{customerPassword}}\"\n}"
+        },
+        "url": "{{baseUrl}}/api/auth/register"
+      }
+    },
+    {
+      "name": "Login customer",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const res = pm.response.json(); if (res && res.success && res.data && res.data.token) { pm.collectionVariables.set('token', res.data.token); }"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{customerEmail}}\",\n  \"password\": \"{{customerPassword}}\"\n}"
+        },
+        "url": "{{baseUrl}}/api/auth/login"
+      }
+    },
+    {
+      "name": "My profile",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+        "url": "{{baseUrl}}/api/auth/me"
+      }
+    },
+    {
+      "name": "List menu",
+      "request": { "method": "GET", "url": "{{baseUrl}}/api/menu-items?page=1&limit=20" }
+    },
+    {
+      "name": "Create order",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"payment_method\": \"upi\",\n  \"items\": [{ \"menu_item_id\": {{menuItemId}}, \"quantity\": 2 }]\n}"
+        },
+        "url": "{{baseUrl}}/api/orders"
+      }
+    },
+    {
+      "name": "Get my order",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+        "url": "{{baseUrl}}/api/orders/{{orderId}}"
+      }
+    },
+    {
+      "name": "List my orders",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+        "url": "{{baseUrl}}/api/orders?page=1&limit=20"
+      }
+    },
+    {
+      "name": "Complete order (staff/admin)",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{token}}" }
+        ],
+        "body": { "mode": "raw", "raw": "{\"status\":\"completed\"}" },
+        "url": "{{baseUrl}}/api/orders/{{orderId}}/status"
+      }
+    },
+    {
+      "name": "Cancel order",
+      "request": {
+        "method": "PATCH",
+        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+        "url": "{{baseUrl}}/api/orders/{{orderId}}/cancel"
+      }
+    },
+    {
+      "name": "Daily sales",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+        "url": "{{baseUrl}}/api/reports/daily-sales"
+      }
+    },
+    {
+      "name": "Top selling",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+        "url": "{{baseUrl}}/api/reports/top-selling-items?limit=10"
+      }
+    }
   ]
 }
